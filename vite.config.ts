@@ -14,58 +14,68 @@ export default defineConfig({
       {
         name: "local-media-and-remote-server",
         configureServer(server) {
-          // 1. Servidor de Streaming para Archivos de Pendrive / Disco Local (/media/...)
-          server.middlewares.use("/media", (req, res, next) => {
-            const reqPath = decodeURIComponent(req.url || "").replace(/^\//, "");
+          // 1. Servidor de Streaming para Archivos de Pendrive / Disco Local (/media/... o /Volumes/...)
+          server.middlewares.use((req, res, next) => {
+            const reqUrl = decodeURIComponent(req.url || "");
             
-            // Posibles ubicaciones de pendrives y almacenamiento local
-            const candidatePaths = [
-              path.join(process.cwd(), "public", "media", reqPath),
-              path.join("/Volumes/Sin titulo", reqPath),
-              path.join("/Volumes/Pendrive", reqPath),
-              path.join("D:", "media", reqPath),
-              path.join("E:", "media", reqPath),
-              path.join("F:", "media", reqPath),
-              path.join("G:", "media", reqPath),
-            ];
-
-            let filePath = "";
-            for (const p of candidatePaths) {
-              if (fs.existsSync(p) && fs.statSync(p).isFile()) {
-                filePath = p;
-                break;
+            if (reqUrl.startsWith("/media/") || reqUrl.startsWith("/Volumes/")) {
+              let reqPath = reqUrl;
+              if (reqUrl.startsWith("/media/")) {
+                reqPath = reqUrl.replace(/^\/media\//, "");
               }
-            }
 
-            if (filePath) {
-              const stat = fs.statSync(filePath);
-              const fileSize = stat.size;
-              const range = req.headers.range;
+              const candidatePaths = [
+                reqUrl, // Ruta directa como /Volumes/Sin titulo/suits/s07e01.mp4
+                reqPath,
+                path.join(process.cwd(), "public", "media", reqPath),
+                path.join("/Volumes/Sin titulo", reqPath),
+                path.join("/Volumes/Pendrive", reqPath),
+                path.join("D:", "media", reqPath),
+                path.join("E:", "media", reqPath),
+                path.join("F:", "media", reqPath),
+                path.join("G:", "media", reqPath),
+              ];
 
-              if (range) {
-                const parts = range.replace(/bytes=/, "").split("-");
-                const start = parseInt(parts[0], 10);
-                const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
-                const chunksize = end - start + 1;
-                const file = fs.createReadStream(filePath, { start, end });
-
-                res.writeHead(206, {
-                  "Content-Range": `bytes ${start}-${end}/${fileSize}`,
-                  "Accept-Ranges": "bytes",
-                  "Content-Length": chunksize,
-                  "Content-Type": "video/mp4",
-                  "Access-Control-Allow-Origin": "*",
-                });
-                file.pipe(res);
-              } else {
-                res.writeHead(200, {
-                  "Content-Length": fileSize,
-                  "Content-Type": "video/mp4",
-                  "Access-Control-Allow-Origin": "*",
-                });
-                fs.createReadStream(filePath).pipe(res);
+              let filePath = "";
+              for (const p of candidatePaths) {
+                try {
+                  if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+                    filePath = p;
+                    break;
+                  }
+                } catch (e) {}
               }
-              return;
+
+              if (filePath) {
+                const stat = fs.statSync(filePath);
+                const fileSize = stat.size;
+                const range = req.headers.range;
+
+                if (range) {
+                  const parts = range.replace(/bytes=/, "").split("-");
+                  const start = parseInt(parts[0], 10);
+                  const end = parts[1] ? parseInt(parts[1], 10) : fileSize - 1;
+                  const chunksize = end - start + 1;
+                  const file = fs.createReadStream(filePath, { start, end });
+
+                  res.writeHead(206, {
+                    "Content-Range": `bytes ${start}-${end}/${fileSize}`,
+                    "Accept-Ranges": "bytes",
+                    "Content-Length": chunksize,
+                    "Content-Type": "video/mp4",
+                    "Access-Control-Allow-Origin": "*",
+                  });
+                  file.pipe(res);
+                } else {
+                  res.writeHead(200, {
+                    "Content-Length": fileSize,
+                    "Content-Type": "video/mp4",
+                    "Access-Control-Allow-Origin": "*",
+                  });
+                  fs.createReadStream(filePath).pipe(res);
+                }
+                return;
+              }
             }
 
             next();
