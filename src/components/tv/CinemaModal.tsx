@@ -1,57 +1,104 @@
-import { useEffect, useRef, useState } from "react";
-import { XIcon, FilmIcon, Maximize2Icon, AlertTriangleIcon, CaptionsIcon, UploadIcon, PlusIcon, MinusIcon } from "lucide-react";
+import { useEffect, useRef } from "react";
+import { XIcon, FilmIcon, Maximize2Icon, AlertTriangleIcon } from "lucide-react";
+import Artplayer from "artplayer";
 import { remoteSync } from "@/lib/remote-sync";
 import { formatUrl } from "@/lib/api";
 
-interface SubtitleCue {
-  start: number;
-  end: number;
-  text: string;
-}
+function ArtPlayerComponent({
+  url,
+  subtitleUrl,
+  title,
+}: {
+  url: string;
+  subtitleUrl?: string;
+  title: string;
+}) {
+  const containerRef = useRef<HTMLDivElement | null>(null);
+  const artRef = useRef<Artplayer | null>(null);
 
-function parseTimestamp(ts: string): number {
-  if (!ts) return 0;
-  const clean = ts.replace(",", ".");
-  const parts = clean.split(":");
-  if (parts.length === 3) {
-    const hours = parseFloat(parts[0]);
-    const minutes = parseFloat(parts[1]);
-    const seconds = parseFloat(parts[2]);
-    return hours * 3600 + minutes * 60 + seconds;
-  }
-  if (parts.length === 2) {
-    const minutes = parseFloat(parts[0]);
-    const seconds = parseFloat(parts[1]);
-    return minutes * 60 + seconds;
-  }
-  return 0;
-}
+  useEffect(() => {
+    if (!containerRef.current) return;
 
-function parseSrt(srtContent: string): SubtitleCue[] {
-  const cues: SubtitleCue[] = [];
-  const blocks = srtContent.trim().replace(/\r\n/g, "\n").split(/\n\n+/);
+    const art = new Artplayer({
+      container: containerRef.current,
+      url: url,
+      title: title,
+      autoplay: true,
+      autoSize: false,
+      fullscreen: true,
+      fullscreenWeb: true,
+      pip: true,
+      setting: true,
+      flip: true,
+      playbackRate: true,
+      aspectRatio: true,
+      subtitleOffset: true,
+      miniProgressBar: true,
+      mutex: true,
+      backdrop: true,
+      playsInline: true,
+      autoPlayback: true,
+      theme: "#10b981",
+      subtitle: subtitleUrl
+        ? {
+            url: subtitleUrl,
+            type: "vtt",
+            style: {
+              color: "#ffffff",
+              fontSize: "26px",
+              fontWeight: "bold",
+              background: "rgba(0, 0, 0, 0.8)",
+              borderRadius: "12px",
+              padding: "6px 18px",
+              boxShadow: "0 8px 25px rgba(0,0,0,0.9)",
+              textShadow: "-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000",
+            },
+          }
+        : undefined,
+      controls: [
+        {
+          position: "right",
+          html: "📁 Cargar SRT",
+          tooltip: "Cargar archivo .srt local",
+          click: function () {
+            const input = document.createElement("input");
+            input.type = "file";
+            input.accept = ".srt,.vtt";
+            input.onchange = (e: any) => {
+              const file = e.target.files?.[0];
+              if (file) {
+                const objectUrl = URL.createObjectURL(file);
+                art.subtitle.url = objectUrl;
+                art.notice.show = `Subtítulo cargado: ${file.name}`;
+              }
+            };
+            input.click();
+          },
+        },
+      ],
+    });
 
-  for (const block of blocks) {
-    const lines = block.split("\n");
-    if (lines.length < 2) continue;
+    artRef.current = art;
 
-    const timeLineIndex = lines.findIndex((l) => l.includes("-->"));
-    if (timeLineIndex === -1) continue;
+    // Sincronización con el Control Remoto
+    const unsubscribe = remoteSync.onKey((msg) => {
+      if (!art) return;
+      if (msg.type === "media-play") art.play();
+      if (msg.type === "media-pause") art.pause();
+      if (msg.type === "media-toggle") art.toggle();
+      if (msg.type === "media-seek-back") art.seek = Math.max(0, art.currentTime - 10);
+      if (msg.type === "media-seek-forward") art.seek = art.currentTime + 10;
+    });
 
-    const timeLine = lines[timeLineIndex];
-    const textLines = lines.slice(timeLineIndex + 1);
+    return () => {
+      unsubscribe();
+      if (art && art.destroy) {
+        art.destroy(false);
+      }
+    };
+  }, [url, subtitleUrl, title]);
 
-    const [startStr, endStr] = timeLine.split("-->").map((s) => s.trim());
-    const start = parseTimestamp(startStr);
-    const end = parseTimestamp(endStr);
-    const text = textLines.join("\n").replace(/<[^>]*>/g, "").trim();
-
-    if (!isNaN(start) && !isNaN(end) && text) {
-      cues.push({ start, end, text });
-    }
-  }
-
-  return cues;
+  return <div ref={containerRef} className="h-full w-full bg-black overflow-hidden" />;
 }
 
 export function CinemaModal({
@@ -67,46 +114,13 @@ export function CinemaModal({
   subtitleUrl?: string;
   onClose: () => void;
 }) {
-  const videoRef = useRef<HTMLVideoElement | null>(null);
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
-  const fileInputRef = useRef<HTMLInputElement | null>(null);
-
-  const [cues, setCues] = useState<SubtitleCue[]>([]);
-  const [currentSubtitle, setCurrentSubtitle] = useState<string>("");
-  const [offset, setOffset] = useState<number>(0);
-  const [subtitleName, setSubtitleName] = useState<string>("");
-
-  const formattedUrl = formatUrl(url);
-  const formattedSubtitleUrl = subtitleUrl ? formatUrl(subtitleUrl) : undefined;
-  const isPlaceholder = !formattedUrl || formattedUrl.startsWith("0.0.0") || formattedUrl.includes("0.0.0.9");
-  const isDirectMedia = /\.(mp4|m3u8|webm|ogv|mov)(\?.*)?$/i.test(formattedUrl);
-
-  // Cargar subtítulos precargados desde Google Sheet
-  useEffect(() => {
-    if (!formattedSubtitleUrl) return;
-    setSubtitleName("Pre-cargado de Sheet");
-    fetch(formattedSubtitleUrl)
-      .then((res) => res.text())
-      .then((text) => {
-        const parsed = parseSrt(text);
-        setCues(parsed);
-      })
-      .catch((err) => console.error("Error cargando subtítulos:", err));
-  }, [formattedSubtitleUrl]);
 
   useEffect(() => {
     const unsubscribe = remoteSync.onKey((msg) => {
       if (msg.key === "Escape" || msg.key === "Backspace") {
         onClose();
         return;
-      }
-
-      if (videoRef.current) {
-        if (msg.type === "media-play") videoRef.current.play();
-        if (msg.type === "media-pause") videoRef.current.pause();
-        if (msg.type === "media-toggle") videoRef.current.paused ? videoRef.current.play() : videoRef.current.pause();
-        if (msg.type === "media-seek-back") videoRef.current.currentTime = Math.max(0, videoRef.current.currentTime - 10);
-        if (msg.type === "media-seek-forward") videoRef.current.currentTime = videoRef.current.currentTime + 10;
       }
 
       if (iframeRef.current && iframeRef.current.contentWindow) {
@@ -117,34 +131,14 @@ export function CinemaModal({
     return unsubscribe;
   }, [onClose]);
 
-  // Actualizar subtítulo en pantalla en cada timeupdate
-  const handleTimeUpdate = () => {
-    if (!videoRef.current || cues.length === 0) return;
-    const now = videoRef.current.currentTime + offset;
-    const active = cues.find((c) => now >= c.start && now <= c.end);
-    setCurrentSubtitle(active ? active.text : "");
-  };
-
-  // Cargar archivo .srt local manualmente desde el Pendrive/Mac
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    setSubtitleName(file.name);
-    const reader = new FileReader();
-    reader.onload = (event) => {
-      const text = event.target?.result as string;
-      if (text) {
-        const parsed = parseSrt(text);
-        setCues(parsed);
-      }
-    };
-    reader.readAsText(file);
-  };
+  const formattedUrl = formatUrl(url);
+  const formattedSubtitleUrl = subtitleUrl ? formatUrl(subtitleUrl) : undefined;
+  const isPlaceholder = !formattedUrl || formattedUrl.startsWith("0.0.0") || formattedUrl.includes("0.0.0.9");
+  const isDirectMedia = /\.(mp4|m3u8|webm|ogv|mov)(\?.*)?$/i.test(formattedUrl);
 
   return (
     <div
-      className="fixed inset-0 z-50 flex flex-col bg-black/95 p-4 md:p-6 backdrop-blur-3xl animate-in fade-in duration-200"
+      className="fixed inset-0 z-50 flex flex-col bg-black/95 p-3 md:p-6 backdrop-blur-3xl animate-in fade-in duration-200"
       onClick={onClose}
       role="dialog"
       aria-label={title}
@@ -166,47 +160,6 @@ export function CinemaModal({
           </div>
 
           <div className="flex items-center gap-2 shrink-0">
-            {/* Botón para Cargar .srt Manualmente */}
-            <input
-              ref={fileInputRef}
-              type="file"
-              accept=".srt,.vtt"
-              className="hidden"
-              onChange={handleFileChange}
-            />
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="tv-glass inline-flex items-center gap-2 rounded-xl px-3 py-1.5 text-xs font-semibold text-white/80 hover:text-white active:scale-95"
-              title="Cargar archivo .srt desde tu equipo"
-            >
-              <UploadIcon className="h-3.5 w-3.5 text-emerald-400" />
-              <span>{subtitleName ? "Cambiar SRT" : "Cargar SRT"}</span>
-            </button>
-
-            {/* Control de Sincronización de Subtítulos (-0.5s / +0.5s) */}
-            {cues.length > 0 && (
-              <div className="flex items-center gap-1 bg-white/5 border border-white/10 rounded-xl px-2 py-1 text-xs">
-                <span className="text-white/40 text-[10px] font-mono mr-1">DESFASE:</span>
-                <button
-                  onClick={() => setOffset((o) => o - 0.5)}
-                  className="p-0.5 rounded hover:bg-white/10 text-white/70"
-                  title="Restar 0.5s"
-                >
-                  <MinusIcon className="h-3 w-3" />
-                </button>
-                <span className="font-mono text-emerald-400 text-xs px-1">
-                  {offset > 0 ? `+${offset}s` : `${offset}s`}
-                </span>
-                <button
-                  onClick={() => setOffset((o) => o + 0.5)}
-                  className="p-0.5 rounded hover:bg-white/10 text-white/70"
-                  title="Sumar 0.5s"
-                >
-                  <PlusIcon className="h-3 w-3" />
-                </button>
-              </div>
-            )}
-
             <button
               onClick={() => {
                 if (document.fullscreenElement) {
@@ -244,31 +197,11 @@ export function CinemaModal({
               </p>
             </div>
           ) : isDirectMedia ? (
-            <div className="relative h-full w-full flex items-center justify-center bg-black">
-              <video
-                ref={videoRef}
-                src={formattedUrl}
-                controls
-                autoPlay
-                onTimeUpdate={handleTimeUpdate}
-                className="h-full w-full object-contain"
-              />
-
-              {/* Renderizador de Subtítulos (Texto Blanco, Contorno Negro y Fondo Negro Transparente) */}
-              {currentSubtitle && (
-                <div className="pointer-events-none absolute bottom-8 left-1/2 -translate-x-1/2 z-30 max-w-4xl text-center px-4 animate-in fade-in duration-75">
-                  <span
-                    className="inline-block bg-black/80 text-white border border-black/50 text-xl md:text-3xl font-bold px-6 py-2.5 rounded-2xl shadow-[0_8px_25px_rgba(0,0,0,0.9)] tracking-wide leading-relaxed whitespace-pre-line select-none"
-                    style={{
-                      textShadow:
-                        "-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, 0 4px 10px rgba(0,0,0,0.9)",
-                    }}
-                  >
-                    {currentSubtitle}
-                  </span>
-                </div>
-              )}
-            </div>
+            <ArtPlayerComponent
+              url={formattedUrl}
+              subtitleUrl={formattedSubtitleUrl}
+              title={title}
+            />
           ) : (
             <iframe
               ref={iframeRef}
@@ -284,12 +217,7 @@ export function CinemaModal({
         <div className="flex items-center justify-between border-t border-white/10 px-6 py-2.5 bg-white/5 text-xs text-white/50 shrink-0">
           <div className="flex items-center gap-2">
             <span className={`h-2 w-2 rounded-full ${isPlaceholder ? "bg-amber-400" : "bg-emerald-400 animate-pulse"}`} />
-            <span>{isPlaceholder ? "Esperando URL válida" : "Reproduciendo nativamente en Smart TV"}</span>
-            {cues.length > 0 && (
-              <span className="ml-2 flex items-center gap-1 rounded-md bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400 border border-emerald-500/30">
-                <CaptionsIcon className="h-3 w-3" /> Subtítulos Activos ({cues.length} líneas)
-              </span>
-            )}
+            <span>{isPlaceholder ? "Esperando URL válida" : "Reproductor Profesional ArtPlayer Activo"}</span>
           </div>
           <span>Presiona Atrás (Esc) en tu celular para salir</span>
         </div>
