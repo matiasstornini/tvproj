@@ -254,10 +254,16 @@ export function CinemaModal({
                 className="h-full w-full object-contain"
               />
 
-              {/* Renderizador de Subtítulos de Cine de Alto Contraste */}
+              {/* Renderizador de Subtítulos (Texto Blanco, Contorno Negro y Fondo Negro Transparente) */}
               {currentSubtitle && (
-                <div className="pointer-events-none absolute bottom-16 left-1/2 -translate-x-1/2 z-30 max-w-4xl text-center px-4 animate-in fade-in duration-75">
-                  <span className="inline-block bg-black/85 text-amber-300 border border-white/15 text-xl md:text-3xl font-bold px-5 py-2.5 rounded-2xl shadow-[0_10px_30px_rgba(0,0,0,0.8)] tracking-wide leading-relaxed whitespace-pre-line select-none">
+                <div className="pointer-events-none absolute bottom-8 left-1/2 -translate-x-1/2 z-30 max-w-4xl text-center px-4 animate-in fade-in duration-75">
+                  <span
+                    className="inline-block bg-black/80 text-white border border-black/50 text-xl md:text-3xl font-bold px-6 py-2.5 rounded-2xl shadow-[0_8px_25px_rgba(0,0,0,0.9)] tracking-wide leading-relaxed whitespace-pre-line select-none"
+                    style={{
+                      textShadow:
+                        "-2px -2px 0 #000, 2px -2px 0 #000, -2px 2px 0 #000, 2px 2px 0 #000, 0 4px 10px rgba(0,0,0,0.9)",
+                    }}
+                  >
                     {currentSubtitle}
                   </span>
                 </div>
