@@ -14,27 +14,27 @@ export default defineConfig({
       {
         name: "local-media-and-remote-server",
         configureServer(server) {
-          // 1. Servidor de Streaming para Archivos de Pendrive / Disco Local (/media/... o /Volumes/...)
+          // 1. Servidor de Streaming Nativo para Archivos del Pendrive de la Mac (/Volumes/... y /media/...)
           server.middlewares.use((req, res, next) => {
             const reqUrl = decodeURIComponent(req.url || "");
+            const cleanPath = reqUrl.split("?")[0];
             
-            if (reqUrl.startsWith("/media/") || reqUrl.startsWith("/Volumes/")) {
-              let reqPath = reqUrl;
-              if (reqUrl.startsWith("/media/")) {
-                reqPath = reqUrl.replace(/^\/media\//, "");
-              }
+            if (cleanPath.startsWith("/media/") || cleanPath.startsWith("/Volumes/")) {
+              let candidatePaths: string[] = [];
 
-              const candidatePaths = [
-                reqUrl, // Ruta directa como /Volumes/Sin titulo/suits/s07e01.mp4
-                reqPath,
-                path.join(process.cwd(), "public", "media", reqPath),
-                path.join("/Volumes/Sin titulo", reqPath),
-                path.join("/Volumes/Pendrive", reqPath),
-                path.join("D:", "media", reqPath),
-                path.join("E:", "media", reqPath),
-                path.join("F:", "media", reqPath),
-                path.join("G:", "media", reqPath),
-              ];
+              if (cleanPath.startsWith("/Volumes/")) {
+                candidatePaths = [
+                  cleanPath, // Ruta exacta en la Mac: /Volumes/Sin titulo/suits/s07e01.mp4
+                  path.join("/Volumes", cleanPath.replace(/^\/Volumes\//, "")),
+                ];
+              } else {
+                const relPath = cleanPath.replace(/^\/media\//, "");
+                candidatePaths = [
+                  path.join("/Volumes/Sin titulo", relPath),
+                  path.join("/Volumes/Pendrive", relPath),
+                  path.join(process.cwd(), "public", "media", relPath),
+                ];
+              }
 
               let filePath = "";
               for (const p of candidatePaths) {
@@ -51,6 +51,12 @@ export default defineConfig({
                 const fileSize = stat.size;
                 const range = req.headers.range;
 
+                const ext = path.extname(filePath).toLowerCase();
+                let contentType = "video/mp4";
+                if (ext === ".mkv") contentType = "video/x-matroska";
+                if (ext === ".m3u8") contentType = "application/x-mpegURL";
+                if (ext === ".webm") contentType = "video/webm";
+
                 if (range) {
                   const parts = range.replace(/bytes=/, "").split("-");
                   const start = parseInt(parts[0], 10);
@@ -62,19 +68,19 @@ export default defineConfig({
                     "Content-Range": `bytes ${start}-${end}/${fileSize}`,
                     "Accept-Ranges": "bytes",
                     "Content-Length": chunksize,
-                    "Content-Type": "video/mp4",
+                    "Content-Type": contentType,
                     "Access-Control-Allow-Origin": "*",
                   });
                   file.pipe(res);
                 } else {
                   res.writeHead(200, {
                     "Content-Length": fileSize,
-                    "Content-Type": "video/mp4",
+                    "Content-Type": contentType,
                     "Access-Control-Allow-Origin": "*",
                   });
                   fs.createReadStream(filePath).pipe(res);
                 }
-                return;
+                return; // Cortar aquí la petición para evitar que devuelva el HTML de TanStack Router
               }
             }
 
