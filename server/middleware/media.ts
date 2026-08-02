@@ -7,26 +7,37 @@ export default eventHandler((event) => {
   const cleanPath = reqUrl.split("?")[0];
 
   if (cleanPath.startsWith("/Volumes/") || cleanPath.startsWith("/media/")) {
-    let candidatePaths: string[] = [];
+    let relPath = cleanPath;
+    if (cleanPath.startsWith("/media/")) {
+      relPath = cleanPath.replace(/^\/media\//, "");
+    } else if (cleanPath.startsWith("/Volumes/")) {
+      // Extraer la ruta relativa quitando /Volumes/NombreDelDisco/
+      const parts = cleanPath.replace(/^\/Volumes\//, "").split("/");
+      parts.shift(); // Quitar el nombre del volumen
+      relPath = parts.join("/");
+    }
 
-    if (cleanPath.startsWith("/Volumes/")) {
-      candidatePaths = [
-        cleanPath,
-        path.join("/Volumes", cleanPath.replace(/^\/Volumes\//, "")),
-      ];
-    } else {
-      const relPath = cleanPath.replace(/^\/media\//, "");
-      candidatePaths = [
-        path.join("/Volumes/Sin titulo", relPath),
-        path.join("/Volumes/Pendrive", relPath),
-        path.join(process.cwd(), "public", "media", relPath),
-      ];
+    const candidatePaths: string[] = [
+      cleanPath,
+      path.join(process.cwd(), "public", "media", relPath),
+    ];
+
+    // Escanear automáticamente TODOS los pendrives y discos externos montados en /Volumes
+    if (fs.existsSync("/Volumes")) {
+      try {
+        const volumes = fs.readdirSync("/Volumes");
+        for (const vol of volumes) {
+          if (vol === "Macintosh HD") continue;
+          candidatePaths.push(path.join("/Volumes", vol, relPath));
+          candidatePaths.push(path.join("/Volumes", vol, cleanPath));
+        }
+      } catch (e) {}
     }
 
     let filePath = "";
     for (const p of candidatePaths) {
       try {
-        if (fs.existsSync(p) && fs.statSync(p).isFile()) {
+        if (p && fs.existsSync(p) && fs.statSync(p).isFile()) {
           filePath = p;
           break;
         }
