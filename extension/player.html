@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Reproductor Nativo Smart TV</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body {
+      width: 100%;
+      height: 100%;
+      background-color: #000;
+      color: #fff;
+      overflow: hidden;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    #player-frame, video {
+      width: 100%;
+      height: 100%;
+      border: none;
+      object-fit: contain;
+    }
+    .loading-container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      color: #10b981;
+    }
+    .spinner {
+      width: 40px;
+      height: 40px;
+      border: 4px solid rgba(16, 185, 129, 0.2);
+      border-top-color: #10b981;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div id="loading" class="loading-container">
+    <div class="spinner"></div>
+    <span style="font-size: 14px; font-weight: 600;">Cargando contenido multimedia...</span>
+  </div>
+
+  <div id="player-root" style="width: 100%; height: 100%; display: none;"></div>
+
+  <script>
+    const rawTarget = window.location.hash ? window.location.hash.substring(1) : "";
+    const targetUrl = decodeURIComponent(rawTarget);
+    const root = document.getElementById("player-root");
+    const loading = document.getElementById("loading");
+
+    function renderPlayer(url) {
+      loading.style.display = "none";
+      root.style.display = "block";
+
+      if (!url) {
+        root.innerHTML = '<div style="text-align:center; padding: 40px; color:#ef4444;">No se especificó ninguna URL válida.</div>';
+        return;
+      }
+
+      const isDirectVideo = /\.(mp4|m3u8|webm|ogv|mov)(\?.*)?$/i.test(url) || url.startsWith("blob:");
+
+      if (isDirectVideo) {
+        root.innerHTML = `<video id="native-video" src="${url}" controls autoplay style="width:100%; height:100%;"></video>`;
+      } else {
+        root.innerHTML = `<iframe id="player-frame" src="${url}" allow="encrypted-media *; autoplay; fullscreen" allowfullscreen></iframe>`;
+      }
+    }
+
+    renderPlayer(targetUrl);
+
+    // Escuchar comandos remotos enviados vía postMessage desde la app Smart TV
+    window.addEventListener("message", (event) => {
+      const data = event.data;
+      if (!data || !data.type) return;
+
+      const video = document.getElementById("native-video");
+      const iframe = document.getElementById("player-frame");
+
+      if (video) {
+        if (data.type === "media-play") video.play();
+        if (data.type === "media-pause") video.pause();
+        if (data.type === "media-toggle") video.paused ? video.play() : video.pause();
+        if (data.type === "media-seek-back") video.currentTime = Math.max(0, video.currentTime - 10);
+        if (data.type === "media-seek-forward") video.currentTime = video.currentTime + 10;
+      } else if (iframe && iframe.contentWindow) {
+        iframe.contentWindow.postMessage(data, "*");
+      }
+    });
+  </script>
+</body>
+</html>
