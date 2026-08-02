@@ -11,9 +11,8 @@ export default eventHandler((event) => {
     if (cleanPath.startsWith("/media/")) {
       relPath = cleanPath.replace(/^\/media\//, "");
     } else if (cleanPath.startsWith("/Volumes/")) {
-      // Extraer la ruta relativa quitando /Volumes/NombreDelDisco/
       const parts = cleanPath.replace(/^\/Volumes\//, "").split("/");
-      parts.shift(); // Quitar el nombre del volumen
+      parts.shift();
       relPath = parts.join("/");
     }
 
@@ -22,7 +21,6 @@ export default eventHandler((event) => {
       path.join(process.cwd(), "public", "media", relPath),
     ];
 
-    // Escanear automáticamente TODOS los pendrives y discos externos montados en /Volumes
     if (fs.existsSync("/Volumes")) {
       try {
         const volumes = fs.readdirSync("/Volumes");
@@ -45,11 +43,26 @@ export default eventHandler((event) => {
     }
 
     if (filePath) {
+      const ext = path.extname(filePath).toLowerCase();
+
+      // Convertir archivos de subtítulos .srt a WebVTT (.vtt) al vuelo para HTML5 video
+      if (ext === ".srt" || ext === ".vtt") {
+        const content = fs.readFileSync(filePath, "utf-8");
+        const vttContent = ext === ".srt" 
+          ? "WEBVTT\n\n" + content.replace(/(\d\d:\d\d:\d\d),(\d\d\d)/g, "$1.$2")
+          : content;
+
+        setResponseHeaders(event, {
+          "Content-Type": "text/vtt; charset=utf-8",
+          "Access-Control-Allow-Origin": "*",
+        });
+        return vttContent;
+      }
+
       const stat = fs.statSync(filePath);
       const fileSize = stat.size;
       const range = getRequestHeader(event, "range");
 
-      const ext = path.extname(filePath).toLowerCase();
       let contentType = "video/mp4";
       if (ext === ".mkv") contentType = "video/x-matroska";
       if (ext === ".m3u8") contentType = "application/x-mpegURL";

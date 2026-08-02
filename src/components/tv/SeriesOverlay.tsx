@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { PlayIcon, FilmIcon, XIcon, Loader2Icon } from "lucide-react";
+import { PlayIcon, FilmIcon, XIcon, Loader2Icon, CaptionsIcon } from "lucide-react";
 import { useSeriesEpisodes } from "@/hooks/useSeriesEpisodes";
 import { EpisodeItem } from "@/lib/api";
 import { CinemaModal } from "./CinemaModal";
@@ -17,11 +17,11 @@ export function SeriesOverlay({
 }) {
   const { data: episodes, isLoading, isError } = useSeriesEpisodes(seriesKey);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [activeMedia, setActiveMedia] = useState<{ title: string; subtitle: string; url: string } | null>(null);
+  const [activeMedia, setActiveMedia] = useState<{ title: string; subtitle: string; url: string; subtitleUrl?: string } | null>(null);
 
   useEffect(() => {
     const handleKey = (e: KeyboardEvent) => {
-      if (activeMedia) return; // Si el cine está abierto, CinemaModal maneja las teclas
+      if (activeMedia) return;
 
       if (e.key === "Escape" || e.key === "Backspace") {
         onClose();
@@ -56,6 +56,7 @@ export function SeriesOverlay({
         title: `${seriesTitle} - T${ep.season}:E${ep.episode}`,
         subtitle: ep.title,
         url: ep.streamUrl,
+        subtitleUrl: ep.subtitleUrl,
       });
     }
   };
@@ -138,7 +139,14 @@ export function SeriesOverlay({
                           T{ep.season}:E{ep.episode}
                         </span>
                         <div className="min-w-0">
-                          <h4 className="text-sm font-semibold text-white truncate">{ep.title}</h4>
+                          <div className="flex items-center gap-2">
+                            <h4 className="text-sm font-semibold text-white truncate">{ep.title}</h4>
+                            {ep.subtitleUrl && (
+                              <span className="flex items-center gap-1 rounded-md bg-emerald-500/20 px-1.5 py-0.5 text-[10px] font-bold text-emerald-400 border border-emerald-500/30">
+                                <CaptionsIcon className="h-3 w-3" /> SRT
+                              </span>
+                            )}
+                          </div>
                           {ep.streamUrl && (
                             <p className="text-xs font-mono text-white/40 truncate max-w-md">
                               {ep.streamUrl}
@@ -181,6 +189,7 @@ export function SeriesOverlay({
           title={activeMedia.title}
           subtitle={activeMedia.subtitle}
           url={activeMedia.url}
+          subtitleUrl={activeMedia.subtitleUrl}
           onClose={() => setActiveMedia(null)}
         />
       )}

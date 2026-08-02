@@ -12,6 +12,7 @@ export interface EpisodeItem {
   episode: string;
   title: string;
   streamUrl: string;
+  subtitleUrl?: string;
   referer?: string;
 }
 
@@ -109,29 +110,13 @@ export async function fetchSeriesEpisodes(seriesKey: string): Promise<EpisodeIte
     const season = c[1]?.v ? String(c[1].v).trim() : "1";
     const episode = c[2]?.v ? String(c[2].v).trim() : String(idx + 1);
 
-    const valD = c[3]?.v ? String(c[3].v).trim() : "";
-    const valE = c[4]?.v ? String(c[4].v).trim() : "";
-    const valF = c[5]?.v ? String(c[5].v).trim() : "";
+    const valLink = c[3]?.v ? String(c[3].v).trim() : "";
+    const valSrt = c[4]?.v ? String(c[4].v).trim() : "";
+    const valReferer = c[5]?.v ? String(c[5].v).trim() : undefined;
 
-    // Detectar de forma inteligente si la Columna D o Columna E es la URL del video/reproductor
-    const isUrlD = /^(https?:\/\/|www\.|\/|sheet:)/i.test(valD) || /\.(com|net|org|la|io|tv|mp4|m3u8|webm)/i.test(valD);
-    const isUrlE = /^(https?:\/\/|www\.|\/|sheet:)/i.test(valE) || /\.(com|net|org|la|io|tv|mp4|m3u8|webm)/i.test(valE);
-
-    let rawStreamUrl = "";
-    let title = "";
-
-    if (isUrlD) {
-      rawStreamUrl = valD;
-      title = isUrlE ? `Episodio ${episode}` : valE || `Episodio ${episode}`;
-    } else if (isUrlE) {
-      rawStreamUrl = valE;
-      title = valD || `Episodio ${episode}`;
-    } else {
-      rawStreamUrl = valD || valE;
-      title = valD && valE ? valD : `Episodio ${episode}`;
-    }
-
-    const referer = valF || undefined;
+    const streamUrl = formatUrl(valLink);
+    const subtitleUrl = valSrt ? formatUrl(valSrt) : undefined;
+    const title = `Capítulo ${episode}`;
 
     if (series && (series.toLowerCase() === targetFilter || series.toLowerCase().includes(targetFilter) || targetFilter.includes(series.toLowerCase()))) {
       episodes.push({
@@ -140,8 +125,9 @@ export async function fetchSeriesEpisodes(seriesKey: string): Promise<EpisodeIte
         season,
         episode,
         title,
-        streamUrl: formatUrl(rawStreamUrl),
-        referer,
+        streamUrl,
+        subtitleUrl,
+        referer: valReferer,
       });
     }
   });

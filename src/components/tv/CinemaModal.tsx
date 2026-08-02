@@ -7,11 +7,13 @@ export function CinemaModal({
   title,
   subtitle,
   url,
+  subtitleUrl,
   onClose,
 }: {
   title: string;
   subtitle?: string;
   url: string;
+  subtitleUrl?: string;
   onClose: () => void;
 }) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
@@ -34,6 +36,7 @@ export function CinemaModal({
   }, [onClose]);
 
   const formattedUrl = formatUrl(url);
+  const formattedSubtitleUrl = subtitleUrl ? formatUrl(subtitleUrl) : undefined;
   const isPlaceholder = !formattedUrl || formattedUrl.startsWith("0.0.0") || formattedUrl.includes("0.0.0.9");
   const isDirectMedia = /\.(mp4|m3u8|webm|ogv|mov)(\?.*)?$/i.test(formattedUrl);
 
@@ -107,7 +110,17 @@ export function CinemaModal({
               controls
               autoPlay
               className="h-full w-full object-contain"
-            />
+            >
+              {formattedSubtitleUrl && (
+                <track
+                  src={formattedSubtitleUrl}
+                  kind="subtitles"
+                  srcLang="es"
+                  label="Español Latino"
+                  default
+                />
+              )}
+            </video>
           ) : (
             <iframe
               ref={iframeRef}
@@ -124,6 +137,11 @@ export function CinemaModal({
           <div className="flex items-center gap-2">
             <span className={`h-2 w-2 rounded-full ${isPlaceholder ? "bg-amber-400" : "bg-emerald-400 animate-pulse"}`} />
             <span>{isPlaceholder ? "Esperando URL válida" : "Reproduciendo nativamente en Smart TV"}</span>
+            {formattedSubtitleUrl && (
+              <span className="ml-2 rounded-md bg-emerald-500/20 px-2 py-0.5 text-[10px] font-bold text-emerald-400 border border-emerald-500/30">
+                CC Subtítulos Activos
+              </span>
+            )}
           </div>
           <span>Presiona Atrás (Esc) en tu celular para salir</span>
         </div>
