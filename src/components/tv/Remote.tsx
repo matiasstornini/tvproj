@@ -168,34 +168,44 @@ export function Remote() {
       </header>
 
       {/* Permanent Dedicated Media Control Bar */}
-      <div className="tv-glass flex items-center justify-between gap-1.5 rounded-2xl px-3 py-2 border border-emerald-500/30 bg-emerald-950/20 shadow-md">
-        <span className="text-xs font-bold uppercase tracking-wider text-emerald-400 pl-1 shrink-0">
+      <div className="tv-glass flex items-center justify-between gap-1 rounded-2xl px-2.5 py-2 border border-emerald-500/30 bg-emerald-950/20 shadow-md">
+        <span className="text-[11px] font-bold uppercase tracking-wider text-emerald-400 pl-1 shrink-0">
           Video
         </span>
-        <div className="flex items-center gap-1.5 shrink-0">
+        <div className="flex items-center gap-1 shrink-0">
           <button
             onClick={() => handleMedia("media-seek-back", "-10s")}
-            className="tv-glass px-2.5 py-1.5 text-xs font-bold rounded-xl text-foreground active:scale-95"
+            className="tv-glass px-2 py-1.5 text-xs font-bold rounded-xl text-foreground active:scale-95"
           >
             ⏪ -10s
           </button>
           <button
             onClick={() => handleMedia("media-play", "▶ PLAY")}
-            className="bg-emerald-500 hover:bg-emerald-400 px-3 py-1.5 text-xs font-bold rounded-xl text-black shadow-md active:scale-95"
+            className="bg-emerald-500 hover:bg-emerald-400 px-2.5 py-1.5 text-xs font-bold rounded-xl text-black shadow-md active:scale-95"
           >
             ▶ PLAY
           </button>
           <button
             onClick={() => handleMedia("media-pause", "⏸ PAUSA")}
-            className="bg-zinc-800 hover:bg-zinc-700 px-3 py-1.5 text-xs font-bold rounded-xl text-white shadow-md active:scale-95"
+            className="bg-zinc-800 hover:bg-zinc-700 px-2.5 py-1.5 text-xs font-bold rounded-xl text-white shadow-md active:scale-95"
           >
             ⏸ PAUSA
           </button>
           <button
             onClick={() => handleMedia("media-seek-forward", "+10s")}
-            className="tv-glass px-2.5 py-1.5 text-xs font-bold rounded-xl text-foreground active:scale-95"
+            className="tv-glass px-2 py-1.5 text-xs font-bold rounded-xl text-foreground active:scale-95"
           >
             +10s ⏩
+          </button>
+          <button
+            onClick={() => {
+              handleMedia("media-fullscreen", "📺 Pantalla Completa");
+              send("Pantalla Completa", "f");
+            }}
+            className="bg-sky-600 hover:bg-sky-500 px-2 py-1.5 text-xs font-bold rounded-xl text-white shadow-md active:scale-95"
+            title="Alternar Pantalla Completa"
+          >
+            📺 Full
           </button>
         </div>
       </div>

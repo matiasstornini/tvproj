@@ -88,6 +88,9 @@ function ArtPlayerComponent({
       if (msg.type === "media-toggle") art.toggle();
       if (msg.type === "media-seek-back") art.seek = Math.max(0, art.currentTime - 10);
       if (msg.type === "media-seek-forward") art.seek = art.currentTime + 10;
+      if (msg.type === "media-fullscreen" || msg.key === "f") {
+        art.fullscreen = !art.fullscreen;
+      }
     });
 
     return () => {
@@ -116,11 +119,23 @@ export function CinemaModal({
 }) {
   const iframeRef = useRef<HTMLIFrameElement | null>(null);
 
+  const toggleFullscreen = () => {
+    if (document.fullscreenElement) {
+      document.exitFullscreen?.();
+    } else {
+      document.documentElement.requestFullscreen?.();
+    }
+  };
+
   useEffect(() => {
     const unsubscribe = remoteSync.onKey((msg) => {
-      if (msg.key === "Escape" || msg.key === "Backspace") {
+      if (msg.key === "Escape" || msg.key === "Backspace" || msg.key === "Home") {
         onClose();
         return;
+      }
+
+      if (msg.type === "media-fullscreen" || msg.key === "f") {
+        toggleFullscreen();
       }
 
       if (iframeRef.current && iframeRef.current.contentWindow) {
@@ -161,20 +176,16 @@ export function CinemaModal({
 
           <div className="flex items-center gap-2 shrink-0">
             <button
-              onClick={() => {
-                if (document.fullscreenElement) {
-                  document.exitFullscreen?.();
-                } else {
-                  document.documentElement.requestFullscreen?.();
-                }
-              }}
+              onClick={toggleFullscreen}
               className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white/70 hover:bg-white/20 hover:text-white"
+              title="Alternar Pantalla Completa"
             >
               <Maximize2Icon className="h-4 w-4" />
             </button>
             <button
               onClick={onClose}
               className="grid h-9 w-9 place-items-center rounded-full bg-white/10 text-white/70 hover:bg-white/20 hover:text-white"
+              title="Cerrar (Esc / Inicio)"
             >
               <XIcon className="h-5 w-5" />
             </button>
@@ -219,7 +230,7 @@ export function CinemaModal({
             <span className={`h-2 w-2 rounded-full ${isPlaceholder ? "bg-amber-400" : "bg-emerald-400 animate-pulse"}`} />
             <span>{isPlaceholder ? "Esperando URL válida" : "Reproductor Profesional ArtPlayer Activo"}</span>
           </div>
-          <span>Presiona Atrás (Esc) en tu celular para salir</span>
+          <span>Presiona Atrás (Esc) o Inicio en tu celular para salir</span>
         </div>
       </div>
     </div>

@@ -3,9 +3,10 @@ import { apps as defaultApps, shelf, sites, getTileStyle, type AppTile } from ".
 import { AppleLogo, GlyphFor, PlayIcon, SearchIcon, SettingsIcon, UserIcon } from "./icons";
 import { DetailOverlay } from "./DetailOverlay";
 import { SeriesOverlay } from "./SeriesOverlay";
+import { CinemaModal } from "./CinemaModal";
 import { useAdminItems } from "@/hooks/useAdminItems";
 import { remoteSync } from "@/lib/remote-sync";
-import { QrCodeIcon, SmartphoneIcon, XIcon } from "lucide-react";
+import { SmartphoneIcon, XIcon } from "lucide-react";
 
 type Pos = { row: number; col: number };
 
@@ -26,6 +27,7 @@ export function TvHome() {
   const [pos, setPos] = useState<Pos>({ row: 0, col: 1 });
   const [open, setOpen] = useState<null | { title: string; subtitle: string; image?: string; url?: string }>(null);
   const [selectedSeries, setSelectedSeries] = useState<null | { key: string; title: string }>(null);
+  const [activeMediaUrl, setActiveMediaUrl] = useState<null | { url: string; title: string }>(null);
   const [showQrModal, setShowQrModal] = useState<boolean>(false);
   const [remoteUrl, setRemoteUrl] = useState<string>("");
   const { time, date } = useClock();
@@ -44,6 +46,12 @@ export function TvHome() {
   useEffect(() => {
     const unsubscribe = remoteSync.onKey((msg) => {
       if (document.visibilityState === "visible") {
+        if (msg.key === "Home" || msg.key === "Escape" || msg.key === "Backspace") {
+          setActiveMediaUrl(null);
+          setSelectedSeries(null);
+          setOpen(null);
+          setShowQrModal(false);
+        }
         window.dispatchEvent(new KeyboardEvent("keydown", { key: msg.key, bubbles: true }));
       }
     });
@@ -56,7 +64,9 @@ export function TvHome() {
       setSelectedSeries({ key: seriesKey, title: tileName || seriesKey });
       return;
     }
-    window.open(url, "_blank", "noopener,noreferrer");
+    // Abrir todo en CinemaModal in-app para que nunca abandone la aplicación
+    // y se pueda cerrar con Atrás/Inicio del celular
+    setActiveMediaUrl({ url, title: tileName || "Canal" });
   }, []);
 
   // Map API items directly into main mosaic tiles
@@ -125,11 +135,12 @@ export function TvHome() {
     const onKey = (e: KeyboardEvent) => {
       if (document.visibilityState !== "visible") return;
 
-      if (open || showQrModal || selectedSeries) {
-        if (e.key === "Escape" || e.key === "Backspace") {
+      if (open || showQrModal || selectedSeries || activeMediaUrl) {
+        if (e.key === "Escape" || e.key === "Backspace" || e.key === "Home") {
           setOpen(null);
           setShowQrModal(false);
           setSelectedSeries(null);
+          setActiveMediaUrl(null);
         }
         return;
       }
@@ -146,7 +157,7 @@ export function TvHome() {
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [activate, open, showQrModal, rowLengths]);
+  }, [activate, open, showQrModal, selectedSeries, activeMediaUrl, rowLengths]);
 
   useEffect(() => {
     const container = scrollRefs.current[pos.row];
@@ -268,7 +279,7 @@ export function TvHome() {
                   data-col={i}
                   onMouseEnter={() => setPos({ row: rowNum, col: i })}
                   onClick={() =>
-                    a.url ? openUrl(a.url) : setOpen({ title: a.name, subtitle: "Aplicación" })
+                    a.url ? openUrl(a.url, a.name) : setOpen({ title: a.name, subtitle: "Aplicación" })
                   }
                   className={`focusable tile-base ${a.className} relative h-24 w-40 shrink-0 sm:h-28 sm:w-48 ${
                     focused(rowNum, i) ? "is-focused" : ""
@@ -288,7 +299,7 @@ export function TvHome() {
                   )}
                   {a.url && (
                     <span className="absolute bottom-1.5 right-2 text-[9px] font-semibold tracking-wider text-emerald-400/90 uppercase">
-                      ↗ Pestaña
+                      Reproducir
                     </span>
                   )}
                 </button>
@@ -332,6 +343,16 @@ export function TvHome() {
       </footer>
 
       {open && <DetailOverlay item={open} onClose={() => setOpen(null)} />}
+
+      {/* Modal para cualquier URL web (YouTube, etc) para cerrar con Atrás/Inicio del celular */}
+      {activeMediaUrl && (
+        <CinemaModal
+          title={activeMediaUrl.title}
+          subtitle="Enlace Web / Reproductor In-App"
+          url={activeMediaUrl.url}
+          onClose={() => setActiveMediaUrl(null)}
+        />
+      )}
 
       {/* QR Code Modal for Mobile Control */}
       {showQrModal && (
